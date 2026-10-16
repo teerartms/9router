@@ -37,9 +37,13 @@ export function openaiToClaudeRequest(model, body, stream) {
   const systemParts = [];
 
   if (body.messages && Array.isArray(body.messages)) {
-    // Extract system messages
+    // Extract system messages. "developer" is the o-series/AI SDK name for the same
+    // thing, and the billing-header strip must apply to it too: a developer message
+    // carries the same x-anthropic-billing-header prefix Claude Code adds to system
+    // text, so joining it unstripped splits the prompt cache exactly as before.
+    const isSystemRole = (role) => role === ROLE.SYSTEM || role === ROLE.DEVELOPER;
     for (const msg of body.messages) {
-      if (msg.role === ROLE.SYSTEM) {
+      if (isSystemRole(msg.role)) {
         const textParts = Array.isArray(msg.content)
           ? msg.content.filter(part => part.type === OPENAI_BLOCK.TEXT).map(part => part.text)
           : [msg.content];
@@ -48,7 +52,7 @@ export function openaiToClaudeRequest(model, body, stream) {
     }
 
     // Filter out system messages for separate processing
-    const nonSystemMessages = body.messages.filter(m => m.role !== ROLE.SYSTEM);
+    const nonSystemMessages = body.messages.filter(m => !isSystemRole(m.role));
 
     // Process messages with merging logic
     // CRITICAL: tool_result must be in separate message immediately after tool_use
