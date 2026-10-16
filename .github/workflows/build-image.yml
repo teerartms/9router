@@ -1,0 +1,95 @@
+# Build and publish the patched 9router image to GHCR.
+# Run manually (Actions -> build-image -> Run workflow, input: branch name) or dispatched by sync-upstream.
+# Lives on the default branch `ci` because GitHub only dispatches workflows from the default branch.
+# local/0.5.104-fc1 -> ghcr.io/<owner>/9router:0.5.104-fc1. Each architecture builds natively (no QEMU) and the two are merged into one multi-arch tag.
+name: build-image
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Patch branch to build, e.g. local/0.5.104-fc1"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/9router
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { platform: linux/amd64, runner: ubuntu-24.04,     slug: amd64 }
+          - { platform: linux/arm64, runner: ubuntu-24.04-arm, slug: arm64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+      - name: Version from branch name
+        id: v
+        run: |
+          case "${{ inputs.branch }}" in local/*-fc*) ;; *) echo "branch must look like local/<ver>-fc<N>"; exit 1;; esac
+          echo "tag=${{ inputs.branch }}" | sed 's|tag=local/|tag=|' >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: APP_VERSION=${{ steps.v.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.slug }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.slug }}
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.slug }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Version from branch name
+        id: v
+        run: echo "tag=${{ inputs.branch }}" | sed 's|tag=local/|tag=|' >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create multi-arch manifest
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create -t "${IMAGE}:${{ steps.v.outputs.tag }}" \
+            $(printf "${IMAGE}@sha256:%s " *)
+      - name: Inspect
+        run: docker buildx imagetools inspect "${IMAGE}:${{ steps.v.outputs.tag }}"
