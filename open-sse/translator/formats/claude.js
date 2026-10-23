@@ -486,6 +486,23 @@ export function hoistToolResultImages(body) {
   return touched ? { ...body, messages } : body;
 }
 
+function sanitizeSchemaPatterns(obj) {
+  if (!obj || typeof obj !== "object") return;
+  if (Array.isArray(obj)) {
+    for (const item of obj) sanitizeSchemaPatterns(item);
+    return;
+  }
+  if (typeof obj.pattern === "string") {
+    // Rust regex crate used by DeepSeek rejects null bytes and \0 escape sequences
+    if (obj.pattern.includes("\\0") || obj.pattern.includes("\0")) {
+      delete obj.pattern;
+    }
+  }
+  for (const key of Object.keys(obj)) {
+    sanitizeSchemaPatterns(obj[key]);
+  }
+}
+
 export function prepareClaudeRequest(body, provider = null, apiKey = null, connectionId = null, rawHeaders = null, sessionId = null) {
   // quirk: MiniMax's Claude-compatible endpoint rejects Anthropic's output_config (400 invalid params)
   if (PROVIDERS[provider]?.quirks?.dropOutputConfig) {
@@ -766,6 +783,12 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
     if (body.tools.length === 0) {
       delete body.tools;
       delete body.tool_choice;
+    } else if (provider === "deepseek" || (provider === "opencode-go" && isDeepSeekModel(body?.model))) {
+      for (const tool of body.tools) {
+        if (tool.input_schema) {
+          sanitizeSchemaPatterns(tool.input_schema);
+        }
+      }
     }
   }
 
