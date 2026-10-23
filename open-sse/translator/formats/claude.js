@@ -587,6 +587,9 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
               }
               return false;
             }
+            if (block?.type === "tool_removal") {
+              return false;
+            }
             return true;
           });
         }
