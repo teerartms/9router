@@ -553,6 +553,48 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
 
   // 2. Messages: process in optimized passes
   if (body.messages && Array.isArray(body.messages)) {
+    const deepSeekServedEarly =
+      provider === "deepseek" ||
+      (provider === "opencode-go" && isDeepSeekModel(body?.model));
+
+    // DeepSeek rejects messages containing tool_definition with 422:
+    // "unknown variant `tool_definition`, expected `tool_reference`".
+    // Hoist dynamic inline tools into body.tools and strip the unsupported blocks.
+    if (deepSeekServedEarly) {
+      const hoisted = [];
+      for (const msg of body.messages) {
+        if (Array.isArray(msg.content)) {
+          msg.content = msg.content.filter(block => {
+            if (block?.type === "tool_addition") {
+              const def = block.tool?.type === "tool_definition" ? block.tool.definition : block.tool;
+              if (def && typeof def === "object" && def.name) {
+                const { type, ...cleanDef } = def;
+                hoisted.push(cleanDef);
+              }
+              return false;
+            }
+            if (block?.type === "tool_definition") {
+              const def = block.definition || block;
+              if (def && typeof def === "object" && def.name) {
+                const { type, ...cleanDef } = def;
+                hoisted.push(cleanDef);
+              }
+              return false;
+            }
+            return true;
+          });
+        }
+      }
+      if (hoisted.length > 0) {
+        if (!Array.isArray(body.tools)) body.tools = [];
+        for (const h of hoisted) {
+          if (!body.tools.some(t => t.name === h.name)) {
+            body.tools.push(h);
+          }
+        }
+      }
+    }
+
     const len = body.messages.length;
     const originalLastRole = body.messages[len - 1]?.role;
     let filtered = [];
@@ -678,7 +720,7 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
       body.tools = body.tools
         .filter(tool => {
           const t = tool?.type;
-          if (!t || t === "function") return true;
+          if (!t || t === "function" || t === "custom") return true;
           if (hasWhitelist) return supportedTypes.includes(t);
           return false;
         })
@@ -689,6 +731,12 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
               description: tool.function.description,
               input_schema: tool.function.parameters,
             };
+          }
+          // Claude Code custom client tools: strip `type: "custom"` so upstream
+          // (e.g. DeepSeek) parses them as standard function tools without unknown-variant error.
+          if (tool.type === "custom") {
+            const { type, ...rest } = tool;
+            return rest;
           }
           // When the provider declared a supportedToolTypes whitelist, keep
           // the surviving tools' `type` field intact — the upstream
