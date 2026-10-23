@@ -38,7 +38,7 @@ describe("prepareClaudeRequest — provider: deepseek", () => {
     ]);
   });
 
-  it("strips MCP / custom tools (the regression) before forwarding", () => {
+  it("normalizes MCP / custom tools by stripping type: custom so DeepSeek accepts them", () => {
     const body = makeBody([
       { type: "custom", name: "Bash", input_schema: { type: "object" } },
       { type: "custom", name: "Read", input_schema: { type: "object" } },
@@ -47,8 +47,50 @@ describe("prepareClaudeRequest — provider: deepseek", () => {
 
     const out = prepareClaudeRequest(body, "deepseek");
 
-    expect(out.tools).toBeUndefined();
-    expect(out.tool_choice).toBeUndefined();
+    expect(Array.isArray(out.tools)).toBe(true);
+    expect(out.tools).toHaveLength(3);
+    for (const t of out.tools) {
+      expect(t.type).toBeUndefined();
+    }
+    expect(out.tools.map(t => t.name)).toEqual(["Bash", "Read", "Glob"]);
+  });
+
+  it("hoists mid-conversation dynamic inline tool_definition into body.tools and strips from messages", () => {
+    const body = {
+      model: "deepseek-v4-pro",
+      max_tokens: 1024,
+      messages: [
+        { role: "user", content: "hello" },
+        { role: "assistant", content: "hi" },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "run my tool" },
+            {
+              type: "tool_addition",
+              tool: {
+                type: "tool_definition",
+                definition: {
+                  name: "dynamic_skill_tool",
+                  description: "A custom skill tool",
+                  input_schema: { type: "object" },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const out = prepareClaudeRequest(body, "deepseek");
+
+    expect(Array.isArray(out.tools)).toBe(true);
+    expect(out.tools.some(t => t.name === "dynamic_skill_tool")).toBe(true);
+
+    const lastUserMsg = out.messages[out.messages.length - 1];
+    expect(Array.isArray(lastUserMsg.content)).toBe(true);
+    expect(lastUserMsg.content.some(b => b.type === "tool_addition")).toBe(false);
+    expect(lastUserMsg.content.some(b => b.type === "text" && b.text === "run my tool")).toBe(true);
   });
 
   it("keeps web_search_20250305 and web_search_20260209", () => {
@@ -79,7 +121,7 @@ describe("prepareClaudeRequest — provider: deepseek", () => {
     expect(out.tools[0].name).toBe("web_search");
   });
 
-  it("drops `custom` but keeps `web_search_*` when both are present", () => {
+  it("normalizes `custom` and keeps `web_search_*` when both are present", () => {
     const out = prepareClaudeRequest(
       makeBody([
         { type: "custom", name: "Bash", input_schema: { type: "object" } },
@@ -89,9 +131,11 @@ describe("prepareClaudeRequest — provider: deepseek", () => {
     );
 
     expect(Array.isArray(out.tools)).toBe(true);
-    expect(out.tools).toHaveLength(1);
-    expect(out.tools[0].type).toBe("web_search_20250305");
-    expect(out.tools[0].name).toBe("web_search");
+    expect(out.tools).toHaveLength(2);
+    const bash = out.tools.find(t => t.name === "Bash");
+    const search = out.tools.find(t => t.name === "web_search");
+    expect(bash.type).toBeUndefined();
+    expect(search.type).toBe("web_search_20250305");
   });
 
   it("survives when body has no tools", () => {
