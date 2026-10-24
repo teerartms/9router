@@ -1,6 +1,7 @@
 # Daily: if decolua/9router has a newer release tag than our newest local/<ver>-fc<N> branch,
 # re-apply the patch commits onto it, push that one branch, and dispatch build-image.
-# Conflict / patch-set-empty / push-rejected => open an issue (if Issues are enabled) and fail the run.
+# Conflict / patch-set-empty / push-rejected / dispatch-failed => open an issue (if Issues are
+# enabled) and fail the run.
 name: sync-upstream
 
 on:
@@ -35,7 +36,7 @@ jobs:
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
           exit 0
       - name: Open an issue when manual action is needed
-        if: steps.sync.outputs.rc == '2' || steps.sync.outputs.rc == '3' || steps.sync.outputs.rc == '4'
+        if: steps.sync.outputs.rc == '2' || steps.sync.outputs.rc == '3' || steps.sync.outputs.rc == '4' || steps.sync.outputs.rc == '5'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -43,6 +44,7 @@ jobs:
             2) t="sync-upstream: patch conflict on new upstream release";;
             3) t="sync-upstream: upstream now contains all patches - switch to the stock image";;
             4) t="sync-upstream: push of the new patch branch was rejected";;
+            5) t="sync-upstream: new patch branch pushed but build-image was not dispatched";;
           esac
           gh issue create --title "$t" --body "See the run log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Fix locally with ./upgrade.sh and push the local/* branch, then run build-image." || echo "could not open an issue (Issues may be disabled on this fork)"
       - name: Fail the run if the sync needs attention
