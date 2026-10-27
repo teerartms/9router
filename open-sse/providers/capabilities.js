@@ -374,25 +374,34 @@ export const PROVIDER_CAPABILITIES = {
     // published efforts from low/high/xhigh to low/high/max.
     "deepseek-v4.1-flash": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 393216 },
   },
-  // CodeBuddy intl (codebuddy.ai) — same model catalog and the same gateway
-  // contract as codebuddy-cn, so the per-model limits below are copied from the
-  // CN block rather than re-derived. Kept as its own entry because lookups are
-  // keyed by provider id: without it these ids fall through to the generic
-  // patterns, which lose vision/reasoning badges and the 1M windows.
-  // Only ids that answered 200 on the live intl endpoint are listed; the ones
-  // it rejects with 11102 stay out (see the registry drop log).
+  // CodeBuddy intl (codebuddy.ai) — ONLY the modality facts that were measured
+  // against the live endpoint are declared here. Lookups are keyed by provider
+  // id, and a provider override wins over the generic patterns, so this block
+  // exists purely to keep the vision badge from being lost.
+  //
+  // vision:true is measured — a data: URL PNG was posted per model on 2026-10-27
+  // and every id below returned 200.
+  //
+  // Deliberately NOT declared: contextWindow, maxOutput, thinkingCanDisable and
+  // thinkingFormat. An earlier revision copied them from the CN block and was
+  // wrong (hy3 accepted ~600k tokens against a copied 192000). They now fall
+  // through to DEFAULT_CAPABILITIES (200000 / 64000 / true / null), which is a
+  // neutral placeholder rather than an invented limit. Measure before adding.
+  //
+  // reasoning:true is omitted for the same reason — no probe established which
+  // ids actually emit thinking.
   "codebuddy-intl": {
-    "glm-5.3":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 131072 },
-    "glm-5.3-flash":      { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 131072 },
-    "glm-5.2":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 131072 },
-    "glm-5.1":            { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 200000, maxOutput: 48000 },
-    "glm-5.0":            { reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 48000 },
-    "minimax-m3":         { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 512000, maxOutput: 524288 },
-    "kimi-k2.8-preview":  { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 300000, maxOutput: 131072 },
-    "kimi-k2.5":          { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 164000, maxOutput: 32000 },
-    "hy4-preview":        { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 64000 },
-    "hy3":                { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 192000, maxOutput: 64000 },
-    "deepseek-v4.1-flash": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: true, contextWindow: 1000000, maxOutput: 393216 },
+    "glm-5.3":            { vision: true },
+    "glm-5.3-flash":      { vision: true },
+    "glm-5.2":            { vision: true },
+    "glm-5.1":            { vision: true },
+    "glm-5.0":            {},
+    "minimax-m3":         { vision: true },
+    "kimi-k2.8-preview":  { vision: true },
+    "kimi-k2.5":          { vision: true },
+    "hy4-preview":        { vision: true },
+    "hy3":                { vision: true },
+    "deepseek-v4.1-flash": { vision: true },
   },
   "poolside": {
     "laguna-s-2.1":  { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 32000 },
