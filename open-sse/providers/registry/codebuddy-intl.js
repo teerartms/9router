@@ -43,25 +43,30 @@ export default {
       url: "https://www.codebuddy.ai/v2/billing/meter/get-user-resource",
     },
   },
-  // Same model lineup exposed by the CN gateway — intl backend is the same catalog.
+  // Catalog verified against the live intl endpoint (2026-10-27). Every id here
+  // answered 200 when probed; ids the server rejects with 11102 "model service
+  // info not found" are dropped so a combo/fallback can't pick a dead model.
+  // Drop log: glm-5.0-turbo / glm-4.7 / minimax-m2.7 / hy3-preview /
+  // deepseek-v4-pro / deepseek-v3-2-volc / kimi-k3-1 (all 11102). glm-5.0 is
+  // kept: it still resolves but sits behind a per-model frequency limit
+  // (14003), so it is temporarily unusable rather than gone.
   models: [
+    { id: "glm-5.3", name: "GLM-5.3" },
+    { id: "glm-5.3-flash", name: "GLM-5.3-Flash" },
     { id: "glm-5.2", name: "GLM-5.2" },
     { id: "glm-5.1", name: "GLM-5.1" },
     { id: "glm-5.0", name: "GLM-5.0" },
-    { id: "glm-5.0-turbo", name: "GLM-5.0-Turbo" },
     { id: "glm-5v-turbo", name: "GLM-5v-Turbo" },
-    { id: "glm-4.7", name: "GLM-4.7" },
     { id: "minimax-m3", name: "MiniMax-M3" },
-    { id: "minimax-m2.7", name: "MiniMax-M2.7" },
+    { id: "kimi-k2.8-preview", name: "Kimi-K2.8-Preview" },
     { id: "kimi-k2.7", name: "Kimi-K2.7-Code" },
     { id: "kimi-k2.6", name: "Kimi-K2.6" },
     { id: "kimi-k2.5", name: "Kimi-K2.5" },
-    { id: "hy3-preview", name: "Hy3 Preview" },
-    { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro" },
+    { id: "hy4-preview", name: "Hy4-Preview" },
+    { id: "hy3", name: "Hy3" },
     // deepseek-v4-flash replaced server-side by deepseek-v4.1-flash (same
     // catalog as CN; the old endpoint still answers 200 but the list is the contract).
     { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash" },
-    { id: "deepseek-v3-2-volc", name: "DeepSeek-V3.2" },
   ],
   oauth: {
     baseUrl: "https://www.codebuddy.ai",
