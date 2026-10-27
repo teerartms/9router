@@ -91,6 +91,15 @@ async function getCodeBuddyUsage(providerId, accessToken, apiKey, providerSpecif
       const de = Number(acc.DeductionEndTime);
       return Number.isFinite(ce) && Number.isFinite(de) && de - ce > REFILL_GAP_MS;
     };
+    // Prefer the package's own unit label (CodeBuddy reports "credit"/"credits";
+    // singular/plural is inconsistent upstream, so normalise it). Falling back to
+    // "credits" keeps the UI from claiming "requests", which is wrong for this
+    // provider — its quota is a credit allowance, not a request count.
+    const unitOf = (acc) => {
+      const raw = String(acc.CapacityUnit || acc.OriginUnit || "").trim();
+      if (!raw) return "credits";
+      return /^credits?$/i.test(raw) ? "credits" : raw;
+    };
     const byExpiry = (a, b) => cycleEndMs(a) - cycleEndMs(b);
 
     const refills = accounts.filter(isRefill).sort(byExpiry);
@@ -112,6 +121,7 @@ async function getCodeBuddyUsage(providerId, accessToken, apiKey, providerSpecif
         // Recurring allowance: the CycleEndTime is the next refresh, not the
         // final expiry. The UI must show "Resets in", not "Expires in".
         recurring: true,
+        unit: unitOf(acc),
       };
     });
     // Bonus packs: use the lifetime Capacity balance; resetAt is the expiry.
@@ -125,6 +135,7 @@ async function getCodeBuddyUsage(providerId, accessToken, apiKey, providerSpecif
         resetAt: parseResetTime(acc.CycleEndTime),
         unlimited: false,
         recurring: false,
+        unit: unitOf(acc),
       };
     });
 
