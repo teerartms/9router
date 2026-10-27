@@ -8,6 +8,10 @@
 import { describe, expect, it } from "vitest";
 
 import codebuddyIntl from "../../open-sse/providers/registry/codebuddy-intl.js";
+import {
+  DEFAULT_CAPABILITIES,
+  getCapabilitiesForModel,
+} from "../../open-sse/providers/capabilities.js";
 
 const DEAD = [
   "glm-5.0-turbo",
@@ -40,5 +44,39 @@ describe("codebuddy-intl model catalog", () => {
 
   it("has no duplicate ids", () => {
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+// Capabilities for this provider must only carry measured facts. vision:true is
+// measured (a data: URL PNG was posted per model and each returned 200).
+// contextWindow/maxOutput/thinkingCanDisable are NOT measured for intl, so they
+// must resolve to DEFAULT_CAPABILITIES rather than an invented per-model limit —
+// an earlier revision copied them from the CN block and got hy3 wrong.
+describe("codebuddy-intl capabilities stay within measured facts", () => {
+  const measuredVision = [
+    "glm-5.3",
+    "glm-5.3-flash",
+    "glm-5.2",
+    "glm-5.1",
+    "minimax-m3",
+    "kimi-k2.8-preview",
+    "kimi-k2.5",
+    "hy4-preview",
+    "hy3",
+    "deepseek-v4.1-flash",
+  ];
+
+  it("declares vision for the models that accepted an image", () => {
+    for (const id of measuredVision) {
+      expect(getCapabilitiesForModel("codebuddy-intl", id).vision).toBe(true);
+    }
+  });
+
+  it("does not invent token limits for this provider", () => {
+    for (const id of measuredVision) {
+      const caps = getCapabilitiesForModel("codebuddy-intl", id);
+      expect(caps.contextWindow).toBe(DEFAULT_CAPABILITIES.contextWindow);
+      expect(caps.maxOutput).toBe(DEFAULT_CAPABILITIES.maxOutput);
+    }
   });
 });
