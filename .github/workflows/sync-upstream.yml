@@ -46,7 +46,12 @@ jobs:
             4) t="sync-upstream: push of the new patch branch was rejected";;
             5) t="sync-upstream: new patch branch pushed but build-image was not dispatched";;
           esac
-          gh issue create --title "$t" --body "See the run log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Fix locally with ./upgrade.sh and push the local/* branch, then run build-image." || echo "could not open an issue (Issues may be disabled on this fork)"
+          # -R is mandatory here for the same reason as in sync.sh: with an
+          # `upstream` remote present gh resolves the repo to decolua/9router and
+          # the create fails. That failure used to be swallowed by `|| echo`,
+          # which is why four failed syncs produced zero issues.
+          gh issue create -R "${{ github.repository }}" --title "$t" --body "See the run log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Fix locally with ./upgrade.sh and push the local/* branch, then run build-image." \
+            || { echo "::error::could not open an issue for rc=${{ steps.sync.outputs.rc }}"; exit 1; }
       - name: Fail the run if the sync needs attention
         if: steps.sync.outputs.rc != '0'
         run: exit 1

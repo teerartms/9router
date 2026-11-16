@@ -54,9 +54,16 @@ if [ "$nonci" -eq 0 ]; then say "patch set is EMPTY: $latest_tag already contain
 if [ "${DRY_RUN:-}" = 1 ]; then say "DRY RUN: would push $new_branch ($nonci patch commits) and dispatch build-image"; exit 0; fi
 git push "$FORK" "refs/heads/$new_branch:refs/heads/$new_branch" || { say "push rejected (upstream may have changed workflow files; run upgrade.sh locally and push)"; exit 4; }
 if [ -z "${GH_TOKEN:-}" ] || ! command -v gh >/dev/null; then say "WARN: gh or GH_TOKEN unavailable; run build-image manually for $new_branch"; exit 5; fi
+# gh picks the repo from the remotes, and with both `origin` and `upstream`
+# present it resolves to decolua/9router (the upstream) — dispatching there
+# fails with 401/404 because we have no rights on it. Always pass -R explicitly.
+# Same for the issue report in the workflow, which is why failures went unseen.
+slug=$(git remote get-url "$FORK" | sed -E 's#^(git@|https://)([^:/]+)[:/]##; s#\.git$##')
+case "$slug" in */*) ;; *) say "could not derive owner/repo from $FORK remote"; exit 5;; esac
+
 dispatched=0
 for i in 1 2 3; do
-  if gh workflow run build-image.yml --ref ci -f branch="$new_branch"; then dispatched=1; break; fi
+  if gh workflow run build-image.yml -R "$slug" --ref ci -f branch="$new_branch"; then dispatched=1; break; fi
   say "dispatch attempt $i failed; retrying in 10s"
   sleep 10
 done
