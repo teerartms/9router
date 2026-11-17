@@ -147,6 +147,17 @@ export class CodeBuddyIntlExecutor extends DefaultExecutor {
     }
   }
 
+  // DefaultExecutor.applyJsonSchemaFallback only fires for `openai-compatible-*`
+  // providers (open-sse/executors/default.js), so `codebuddy-intl` silently kept
+  // sending `response_format: {type: "json_schema"}` — a shape the intl gateway
+  // ignores, leaving the caller with free-text where JSON was asked for. Override
+  // the guard here instead of widening the base one, so no other provider's
+  // request shape changes.
+  applyJsonSchemaFallback(body) {
+    if (this.provider !== "codebuddy-intl") return body;
+    return super.applyJsonSchemaFallback(body, { force: true });
+  }
+
   transformRequest(model, body, stream, credentials) {
     const transformed = super.transformRequest(model, body, stream, credentials);
     transformed.stream = true;

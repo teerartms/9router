@@ -139,8 +139,10 @@ export class DefaultExecutor extends BaseExecutor {
   }
 
   // Fallback json_schema → json_object for openai-compatible providers without native Structured Output.
-  applyJsonSchemaFallback(body) {
-    if (!this.provider?.startsWith?.("openai-compatible-")) return body;
+  // `force` lets a subclass (codebuddy-intl, whose provider id is not openai-compatible-*)
+  // opt into the same fallback without widening the guard for every other provider.
+  applyJsonSchemaFallback(body, { force = false } = {}) {
+    if (!force && !this.provider?.startsWith?.("openai-compatible-")) return body;
     const rf = body?.response_format;
     if (rf?.type !== "json_schema" || !rf.json_schema?.schema) return body;
 
