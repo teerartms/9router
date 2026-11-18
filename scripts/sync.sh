@@ -32,7 +32,10 @@ if git ls-remote --exit-code --heads "$FORK" "$new_branch" >/dev/null 2>&1; then
 git fetch -q --no-tags "$UP" "refs/tags/$cur_tag:refs/tags/$cur_tag" "refs/tags/$latest_tag:refs/tags/$latest_tag"
 git checkout -q -B "$new_branch" "$latest_tag"
 applied=0
-for c in $(git rev-list --reverse "$cur_tag..refs/remotes/$FORK/$cur_branch"); do
+# Range starts at the NEW tag, not at the old one: the previous patch branch was
+# cut from $cur_tag before upstream's "Bump version" commit, so a $cur_tag.. range
+# replays that bump in reverse and ships the previous version in package.json.
+for c in $(git rev-list --reverse "$latest_tag..refs/remotes/$FORK/$cur_branch"); do
   s=$(git log -1 --format=%s "$c")
   is_ci=0; case "$s" in ci:*) is_ci=1;; esac
   if git cherry-pick -x "$c" >/dev/null 2>&1; then
