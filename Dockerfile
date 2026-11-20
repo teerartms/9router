@@ -95,9 +95,14 @@ RUN mkdir -p /app/data && chown -R node:node /app && \
 
 # Avoid a full distribution upgrade in the runtime image. It makes builds less
 # reproducible and is unrelated to installing the runtime entrypoint helper.
-RUN apk add --no-cache su-exec ffmpeg && \
+RUN apk add --no-cache su-exec ffmpeg tzdata && \
   printf '#!/bin/sh\nchown -R node:node /app/data /app/data-home 2>/dev/null\nexec su-exec node "$@"\n' > /entrypoint.sh && \
   chmod +x /entrypoint.sh
+
+# Alpine node images ship no zone database, so TZ=Asia/Jakarta silently resolved
+# to UTC. tzdata above provides /usr/share/zoneinfo; this makes the image
+# self-describing about which zone it runs in.
+ENV TZ=Asia/Jakarta
 
 EXPOSE 20128
 
