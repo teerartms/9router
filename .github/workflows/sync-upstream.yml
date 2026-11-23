@@ -6,7 +6,10 @@ name: sync-upstream
 
 on:
   schedule:
-    - cron: "17 3 * * *"
+    # 03:17 WIB (20:17 UTC, previous day). GitHub evaluates cron in UTC only,
+    # so the WIB wall clock has to be converted by hand: 03:00 WIB = 20:00 UTC.
+    # The :17 offset keeps us out of GitHub's top-of-hour queue.
+    - cron: "17 20 * * *"
   workflow_dispatch:
 
 permissions:
